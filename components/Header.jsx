@@ -51,7 +51,7 @@ const Header = ({ workoutsCompleted }) => {
   };
 
   return (
-    <div className="w-full bg-white transition-all duration-300 border-b p-[1rem] z-10 border-[1px] border-[#f3f4f6]">
+    <div className="w-full bg-white transition-all duration-300 p-[1rem] z-10 border-b-[1px] border-[#f3f4f6] mb-2">
       <div className="flex justify-between items-start">
         <div>
           <h1 className="leading-tight tracking-tight">
@@ -63,7 +63,7 @@ const Header = ({ workoutsCompleted }) => {
             </span>
           </h1>
           <p className="text-md font-medium text-[#10b981] mt-1">
-            {workoutsCompleted} workouts completed
+           Done {workoutsCompleted} workouts
           </p>
         </div>
         <button
@@ -76,9 +76,4 @@ const Header = ({ workoutsCompleted }) => {
   );
 };
 
-// Default export with sample data
-const HeaderWrapper = ({ workoutsCompleted = 43 }) => {
-  return <Header workoutsCompleted={workoutsCompleted} />;
-};
-
-export default HeaderWrapper;
+export default Header;
