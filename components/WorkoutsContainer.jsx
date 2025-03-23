@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { initialWorkoutData } from "@/const/data";
+import { Cross, X } from "lucide-react";
 // Sample workout data structure
-
 
 const WorkoutsContainer = () => {
   // State variables
@@ -162,124 +162,8 @@ const WorkoutsContainer = () => {
   const isFullyCompleted =
     completedExercises === totalExercises && totalExercises > 0;
 
-  // Render the day indicators component
-  const DayIndicators = () => {
-    return (
-      <div className="flex justify-center mt-6 mb-2">
-        {workoutData.days.map((day) => (
-          <button
-            key={day.id}
-            className={`h-1.5 rounded-full mx-1 transition-all duration-300 ease-in-out transform ${
-              currentDayIndex === day.id
-                ? "w-5 bg-gray-900"
-                : "w-1.5 bg-gray-200 hover:bg-gray-300"
-            }`}
-            onClick={() => handleDayChange(day.id)}
-            aria-label={`View ${day.name} workout`}
-          />
-        ))}
-      </div>
-    );
-  };
-
   // Render the workout card based on day type
   const renderWorkoutCard = () => {
-    // Rest day card
-    if (currentDay.type === "rest") {
-      return (
-        <div className="w-full bg-white rounded-xl shadow-sm overflow-hidden transition-all duration-300 mb-4">
-          <div className="p-4">
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center mr-3">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round">
-                  <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
-                </svg>
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">
-                  Rest Day
-                </h2>
-                <p className="text-sm text-gray-500">
-                  Today is {currentDay.name} - enjoy your rest!
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // Cardio day card
-    if (currentDay.type === "cardio") {
-      return (
-        <div className="w-full bg-white rounded-xl shadow-sm overflow-hidden transition-all duration-300 mb-4">
-          <div className="p-4">
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center mr-3">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round">
-                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-                </svg>
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">
-                  Cardio Day
-                </h2>
-                <p className="text-sm text-gray-500">
-                  Today is {currentDay.name} - time for some cardio!
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="px-4 pb-4">
-            <div className="mt-4 bg-gray-50 p-4 rounded-lg">
-              <h3 className="font-medium mb-2">Suggested Activities:</h3>
-              <ul className="text-gray-600 pl-4 mb-4">
-                <li className="before:content-['•'] before:mr-2">
-                  30 min jogging or running
-                </li>
-                <li className="before:content-['•'] before:mr-2">
-                  45 min cycling
-                </li>
-                <li className="before:content-['•'] before:mr-2">
-                  20 min HIIT session
-                </li>
-                <li className="before:content-['•'] before:mr-2">
-                  Swimming or rowing
-                </li>
-              </ul>
-            </div>
-
-            <button
-              className="w-full mt-4 py-3 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 active:bg-gray-950 active:scale-[0.98] transition-all duration-200"
-              onClick={() =>
-                console.log("Cardio workout logged for", currentDay.name)
-              }>
-              Log Cardio Workout
-            </button>
-          </div>
-        </div>
-      );
-    }
-
     // Regular workout day card
     return (
       <div className="w-full bg-white rounded-xl shadow-sm border-l-4 border-gray-900 overflow-hidden transition-all duration-300 mb-4">
@@ -371,19 +255,7 @@ const WorkoutsContainer = () => {
             <button
               className="p-1 text-gray-400 hover:text-gray-600"
               onClick={closeExerciseModal}>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round">
-                <path d="M18 6 6 18"></path>
-                <path d="m6 6 12 12"></path>
-              </svg>
+              <X />
             </button>
           </div>
 
@@ -459,8 +331,9 @@ const WorkoutsContainer = () => {
         className="swipe-container relative overflow-hidden"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}>
-        {/* Day Content with Animation */}
+        onTouchEnd={handleTouchEnd}
+        // Day Content with Animation
+      >
         <div
           className="day-content transition-all duration-300 ease-in-out"
           style={{
@@ -469,9 +342,6 @@ const WorkoutsContainer = () => {
           }}>
           {renderWorkoutCard()}
         </div>
-
-        {/* Day Indicators */}
-        {/* <DayIndicators /> */}
 
         {/* Exercise Modal */}
         <ExerciseModal />

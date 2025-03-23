@@ -1,12 +1,6 @@
 export const initialWorkoutData = {
   days: [
     {
-      id: 0,
-      name: "Sunday",
-      shortName: "SUN",
-      type: "rest",
-    },
-    {
       id: 1,
       name: "Monday",
       shortName: "MON",
@@ -183,12 +177,6 @@ export const initialWorkoutData = {
           ],
         },
       ],
-    },
-    {
-      id: 6,
-      name: "Saturday",
-      shortName: "SAT",
-      type: "cardio",
     },
   ],
 };
