@@ -6,13 +6,28 @@ const Header = ({ workoutsCompleted }) => {
   const [weekNumber, setWeekNumber] = useState(0);
 
   useEffect(() => {
-    // Calculate the current week of the year
+    // Calculate the current week of the year using ISO week date standard
     const calculateWeekNumber = () => {
       const now = new Date();
-      const start = new Date(now.getFullYear(), 0, 1);
-      const diff = now - start;
-      const oneWeek = 7 * 24 * 60 * 60 * 1000;
-      const weekNum = Math.floor(diff / oneWeek) + 1;
+
+      // Create a new date object for the first day of the year
+      const firstDayOfYear = new Date(now.getFullYear(), 0, 1);
+
+      // Get the day of the week of the first day (0 = Sunday, 1 = Monday, etc.)
+      const firstDayOfWeek = firstDayOfYear.getDay();
+
+      // Calculate days passed since first day of the year (accounting for timezone)
+      const daysPassed = Math.floor(
+        (now - firstDayOfYear) / (24 * 60 * 60 * 1000)
+      );
+
+      // Calculate the week number (add 1 because weeks are 1-indexed)
+      // Math.ceil((daysPassed + firstDayOfWeek) / 7) would work for US weeks (Sunday start)
+      // For ISO weeks (Monday start), use the formula below:
+      const weekNum = Math.ceil(
+        (daysPassed + (firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1)) / 7
+      );
+
       setWeekNumber(weekNum);
     };
 
@@ -36,7 +51,7 @@ const Header = ({ workoutsCompleted }) => {
   };
 
   return (
-    <div className="w-full bg-white transition-all duration-300 border-b p-[1rem] z-10 border-gray-200">
+    <div className="w-full bg-white transition-all duration-300 border-b p-[1rem] z-10 border-[1px] border-[#f3f4f6]">
       <div className="flex justify-between items-start">
         <div>
           <h1 className="leading-tight tracking-tight">
@@ -54,7 +69,6 @@ const Header = ({ workoutsCompleted }) => {
         <button
           className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-50 transition-all duration-200 active:bg-gray-100 active:scale-95"
           aria-label="Settings">
-          {/* Simple gear/settings icon SVG */}
           <Settings color="#9ca3af" />
         </button>
       </div>
