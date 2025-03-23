@@ -20,7 +20,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body className="font-sans antialiased">
         <main className="flex justify-center min-h-screen bg-white">
-          <div className="w-full max-w-md">{children}</div>
+          <div className="w-full max-w-lg">{children}</div>
         </main>
       </body>
     </html>
