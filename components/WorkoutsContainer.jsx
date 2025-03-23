@@ -1,0 +1,483 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { initialWorkoutData } from "@/const/data";
+// Sample workout data structure
+
+
+const WorkoutsContainer = () => {
+  // State variables
+  const [workoutData, setWorkoutData] = useState(initialWorkoutData);
+  const [currentDayIndex, setCurrentDayIndex] = useState(0);
+  const [translateValue, setTranslateValue] = useState(0);
+  const [touchStartX, setTouchStartX] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [selectedExercise, setSelectedExercise] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Initialize with the current day of the week
+  useEffect(() => {
+    const today = new Date().getDay();
+    setCurrentDayIndex(today);
+  }, []);
+
+  // Day navigation handlers
+  const handleDayChange = (dayIndex) => {
+    if (isAnimating) return;
+
+    const direction = dayIndex > currentDayIndex ? "left" : "right";
+    setIsAnimating(true);
+
+    // Determine slide direction
+    const slideOffset = direction === "left" ? -20 : 20;
+    setTranslateValue(slideOffset);
+
+    // Wait a bit to allow animation to start
+    setTimeout(() => {
+      setCurrentDayIndex(dayIndex);
+      setTranslateValue(0);
+
+      // End the animation state after the transition completes
+      setTimeout(() => {
+        setIsAnimating(false);
+      }, 300);
+    }, 50);
+  };
+
+  // Touch event handlers for swipe gestures
+  const handleTouchStart = (e) => {
+    setTouchStartX(e.touches[0].clientX);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!touchStartX) return;
+
+    const touchCurrentX = e.touches[0].clientX;
+    const diff = touchStartX - touchCurrentX;
+
+    // Prevent default for significant horizontal swipes
+    if (Math.abs(diff) > 10) {
+      e.preventDefault();
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    if (!touchStartX) return;
+
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX - touchEndX;
+    const threshold = 80; // Minimum swipe distance
+
+    if (diff > threshold) {
+      // Swipe left - next day
+      const nextDay = currentDayIndex < 6 ? currentDayIndex + 1 : 0;
+      handleDayChange(nextDay);
+    } else if (diff < -threshold) {
+      // Swipe right - previous day
+      const prevDay = currentDayIndex > 0 ? currentDayIndex - 1 : 6;
+      handleDayChange(prevDay);
+    }
+
+    // Reset touch start value
+    setTouchStartX(0);
+  };
+
+  // Exercise modal handlers
+  const openExerciseModal = (exercise) => {
+    setSelectedExercise({ ...exercise });
+    setIsModalOpen(true);
+  };
+
+  const closeExerciseModal = () => {
+    setIsModalOpen(false);
+    setSelectedExercise(null);
+  };
+
+  const updateExerciseSet = (setIndex, field, value) => {
+    if (!selectedExercise) return;
+
+    const updatedSets = [...selectedExercise.sets];
+    updatedSets[setIndex] = {
+      ...updatedSets[setIndex],
+      [field]: value,
+    };
+
+    setSelectedExercise({
+      ...selectedExercise,
+      sets: updatedSets,
+    });
+  };
+
+  const addNewSet = () => {
+    if (!selectedExercise) return;
+
+    setSelectedExercise({
+      ...selectedExercise,
+      sets: [...selectedExercise.sets, { reps: "", weight: "" }],
+    });
+  };
+
+  const handleSaveExercise = () => {
+    if (!selectedExercise) return;
+
+    // Check if at least one set has both reps and weight filled
+    const isCompleted = selectedExercise.sets.some(
+      (set) => set.reps.trim() !== "" && set.weight.trim() !== ""
+    );
+
+    const updatedExercise = {
+      ...selectedExercise,
+      completed: isCompleted,
+    };
+
+    // Update the workout data
+    const updatedWorkoutData = JSON.parse(JSON.stringify(workoutData));
+    const currentDay = updatedWorkoutData.days[currentDayIndex];
+
+    if (currentDay.exercises) {
+      const exerciseIndex = currentDay.exercises.findIndex(
+        (ex) => ex.id === selectedExercise.id
+      );
+      if (exerciseIndex !== -1) {
+        currentDay.exercises[exerciseIndex] = updatedExercise;
+      }
+    }
+
+    // Log the update (instead of saving to DB)
+    console.log("Exercise updated:", updatedExercise);
+
+    // Update state
+    setWorkoutData(updatedWorkoutData);
+    closeExerciseModal();
+  };
+
+  // Get current day data
+  const currentDay = workoutData.days[currentDayIndex];
+
+  // Calculate completion progress for current day
+  const completedExercises = currentDay.exercises
+    ? currentDay.exercises.filter((ex) => ex.completed).length
+    : 0;
+  const totalExercises = currentDay.exercises ? currentDay.exercises.length : 0;
+  const isFullyCompleted =
+    completedExercises === totalExercises && totalExercises > 0;
+
+  // Render the day indicators component
+  const DayIndicators = () => {
+    return (
+      <div className="flex justify-center mt-6 mb-2">
+        {workoutData.days.map((day) => (
+          <button
+            key={day.id}
+            className={`h-1.5 rounded-full mx-1 transition-all duration-300 ease-in-out transform ${
+              currentDayIndex === day.id
+                ? "w-5 bg-gray-900"
+                : "w-1.5 bg-gray-200 hover:bg-gray-300"
+            }`}
+            onClick={() => handleDayChange(day.id)}
+            aria-label={`View ${day.name} workout`}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  // Render the workout card based on day type
+  const renderWorkoutCard = () => {
+    // Rest day card
+    if (currentDay.type === "rest") {
+      return (
+        <div className="w-full bg-white rounded-xl shadow-sm overflow-hidden transition-all duration-300 mb-4">
+          <div className="p-4">
+            <div className="flex items-center">
+              <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center mr-3">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="white"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round">
+                  <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Rest Day
+                </h2>
+                <p className="text-sm text-gray-500">
+                  Today is {currentDay.name} - enjoy your rest!
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Cardio day card
+    if (currentDay.type === "cardio") {
+      return (
+        <div className="w-full bg-white rounded-xl shadow-sm overflow-hidden transition-all duration-300 mb-4">
+          <div className="p-4">
+            <div className="flex items-center">
+              <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center mr-3">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="white"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Cardio Day
+                </h2>
+                <p className="text-sm text-gray-500">
+                  Today is {currentDay.name} - time for some cardio!
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-4 pb-4">
+            <div className="mt-4 bg-gray-50 p-4 rounded-lg">
+              <h3 className="font-medium mb-2">Suggested Activities:</h3>
+              <ul className="text-gray-600 pl-4 mb-4">
+                <li className="before:content-['•'] before:mr-2">
+                  30 min jogging or running
+                </li>
+                <li className="before:content-['•'] before:mr-2">
+                  45 min cycling
+                </li>
+                <li className="before:content-['•'] before:mr-2">
+                  20 min HIIT session
+                </li>
+                <li className="before:content-['•'] before:mr-2">
+                  Swimming or rowing
+                </li>
+              </ul>
+            </div>
+
+            <button
+              className="w-full mt-4 py-3 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 active:bg-gray-950 active:scale-[0.98] transition-all duration-200"
+              onClick={() =>
+                console.log("Cardio workout logged for", currentDay.name)
+              }>
+              Log Cardio Workout
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // Regular workout day card
+    return (
+      <div className="w-full bg-white rounded-xl shadow-sm border-l-4 border-gray-900 overflow-hidden transition-all duration-300 mb-4">
+        <div className="p-4 border-b border-gray-100">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">
+                {currentDay.focus}
+              </h2>
+              <p className="text-sm text-gray-500">
+                {currentDay.date} · {currentDay.shortName}
+              </p>
+            </div>
+            <div className="text-sm text-gray-600">
+              {completedExercises}/{totalExercises}
+              {isFullyCompleted && (
+                <span className="inline-flex ml-1 text-emerald-500">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4">
+          <div className="flex flex-col gap-2">
+            {currentDay.exercises &&
+              currentDay.exercises.map((exercise) => (
+                <div
+                  key={exercise.id}
+                  className="p-3 border border-gray-100 rounded-lg flex justify-between items-center cursor-pointer hover:bg-gray-50 transition-all duration-200"
+                  onClick={() => openExerciseModal(exercise)}>
+                  <span className="font-medium text-gray-800">
+                    {exercise.name}
+                  </span>
+                  <div
+                    className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                      exercise.completed
+                        ? "bg-gray-900 text-white"
+                        : "border border-gray-200"
+                    }`}>
+                    {exercise.completed && (
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                    )}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Exercise modal component
+  const ExerciseModal = () => {
+    if (!isModalOpen || !selectedExercise) return null;
+
+    return (
+      <div
+        className="fixed inset-0 bg-black bg-opacity-10  flex items-end justify-center z-50 animate-fadeIn"
+        onClick={closeExerciseModal}>
+        <div
+          className="bg-white w-full max-w-md rounded-t-2xl p-4 animate-slideUp"
+          onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-between items-center mb-4 border-b border-gray-100 pb-3">
+            <h3 className="text-lg font-medium">{selectedExercise.name}</h3>
+            <button
+              className="p-1 text-gray-400 hover:text-gray-600"
+              onClick={closeExerciseModal}>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round">
+                <path d="M18 6 6 18"></path>
+                <path d="m6 6 12 12"></path>
+              </svg>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-12 gap-2 mb-2 text-sm text-gray-500 font-medium">
+            <div className="col-span-2">Set</div>
+            <div className="col-span-5">Reps</div>
+            <div className="col-span-5">Weight (kg)</div>
+          </div>
+
+          {selectedExercise.sets.map((set, index) => (
+            <div key={index} className="grid grid-cols-12 gap-2 mb-3">
+              <div className="col-span-2 flex items-center justify-center bg-gray-50 rounded-md py-2 text-gray-600 font-medium">
+                {index + 1}
+              </div>
+              <div className="col-span-5">
+                <input
+                  type="text"
+                  className="w-full p-2 border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300"
+                  placeholder="0"
+                  value={set.reps}
+                  onChange={(e) =>
+                    updateExerciseSet(index, "reps", e.target.value)
+                  }
+                />
+              </div>
+              <div className="col-span-5">
+                <input
+                  type="text"
+                  className="w-full p-2 border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300"
+                  placeholder="0"
+                  value={set.weight}
+                  onChange={(e) =>
+                    updateExerciseSet(index, "weight", e.target.value)
+                  }
+                />
+              </div>
+            </div>
+          ))}
+
+          <button
+            className="w-full py-2 px-3 mb-4 border border-gray-200 rounded-lg flex items-center justify-center hover:bg-gray-50 transition-colors duration-200"
+            onClick={addNewSet}>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="mr-1">
+              <path d="M5 12h14"></path>
+              <path d="M12 5v14"></path>
+            </svg>
+            <span className="text-gray-600">Add Set</span>
+          </button>
+
+          <button
+            className="w-full py-3 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 active:scale-[0.98] transition-all duration-200"
+            onClick={handleSaveExercise}>
+            Save
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="w-full">
+      <div
+        className="swipe-container relative overflow-hidden"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}>
+        {/* Day Content with Animation */}
+        <div
+          className="day-content transition-all duration-300 ease-in-out"
+          style={{
+            transform: `translateX(${translateValue}px)`,
+            opacity: isAnimating ? 0.7 : 1,
+          }}>
+          {renderWorkoutCard()}
+        </div>
+
+        {/* Day Indicators */}
+        {/* <DayIndicators /> */}
+
+        {/* Exercise Modal */}
+        <ExerciseModal />
+      </div>
+    </div>
+  );
+};
+
+export default WorkoutsContainer;
