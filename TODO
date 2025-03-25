@@ -1,0 +1,4 @@
+- Render the card based on the current date's day and display the workout card for that day
+- remove set button to set instead store the value as input's change.
+- Store the data in DB
+- discuss with Anand on how to store the data in db
