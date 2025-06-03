@@ -13,6 +13,19 @@ const geistMono = Geist_Mono({
 
 export const metadata = {
   title: "Workout Tracker",
+  description: "Track your workouts efficiently.",
+  manifest: "/manifest.json",
+  themeColor: "#000000",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Workout Tracker",
+    // You can add startup images here if needed, e.g.:
+    // startupImage: [
+    //   '/icons/apple-touch-startup-image-750x1334.png',
+    //   { url: '/icons/apple-touch-startup-image-1536x2048.png', media: '(device-width: 768px) and (device-height: 1024px)' },
+    // ],
+  },
 };
 
 export default function RootLayout({ children }) {
