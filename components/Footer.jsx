@@ -13,7 +13,7 @@ const Footer = () => {
   };
 
   return (
-    <footer className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-3 z-10">
+    <footer className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-3">
       <div className="flex justify-around max-w-md mx-auto">
         <button
           className={`flex flex-col items-center transition-all duration-200 active:scale-95 ${

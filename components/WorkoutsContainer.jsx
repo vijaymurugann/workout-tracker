@@ -1,20 +1,26 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { initialWorkoutData } from "@/const/data";
 import { updateWorkoutDataWithCurrentDates } from "@/lib/utils/date-utils";
-import { Cross, X } from "lucide-react";
+import { X } from "lucide-react";
+import { SlickBottomSheet } from "slick-bottom-sheet";
+import WorkoutCard from "./WorkoutCard";
+
 // Sample workout data structure
 
 const WorkoutsContainer = () => {
   // State variables
   const [workoutData, setWorkoutData] = useState(initialWorkoutData);
   const [currentDayIndex, setCurrentDayIndex] = useState(0);
-  const [translateValue, setTranslateValue] = useState(0);
   const [touchStartX, setTouchStartX] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+  const animationFrameId = useRef(null);
 
   // Initialize with the current day of the week and update dates
   useEffect(() => {
@@ -43,102 +49,121 @@ const WorkoutsContainer = () => {
 
   // Day navigation handlers
   const handleDayChange = (dayIndex) => {
-    if (isAnimating) return;
+    if (isAnimating || isDragging) return;
 
-    const direction = dayIndex > currentDayIndex ? "left" : "right";
     setIsAnimating(true);
 
-    // Determine slide direction
-    const slideOffset = direction === "left" ? -20 : 20;
-    setTranslateValue(slideOffset);
+    // Immediately set the new day index
+    setCurrentDayIndex(dayIndex);
 
-    // Wait a bit to allow animation to start
     setTimeout(() => {
-      setCurrentDayIndex(dayIndex);
-      setTranslateValue(0);
-
-      // End the animation state after the transition completes
-      setTimeout(() => {
-        setIsAnimating(false);
-      }, 300);
-    }, 50);
+      setIsAnimating(false);
+    }, 300);
   };
 
   // Touch event handlers for swipe gestures
   const handleTouchStart = (e) => {
     setTouchStartX(e.touches[0].clientX);
+    setIsDragging(false);
+    setDragOffset(0);
+    if (animationFrameId.current) {
+      cancelAnimationFrame(animationFrameId.current);
+    }
   };
 
   const handleTouchMove = (e) => {
-    if (!touchStartX) return;
+    if (touchStartX === null) return;
 
     const touchCurrentX = e.touches[0].clientX;
     const diff = touchStartX - touchCurrentX;
 
-    // Prevent default for significant horizontal swipes
-    if (Math.abs(diff) > 10) {
+    if (Math.abs(diff) > 10 && !isDragging) {
+      setIsDragging(true);
+    }
+
+    if (isDragging) {
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+      }
+
+      animationFrameId.current = requestAnimationFrame(() => {
+        setDragOffset(-diff);
+      });
       e.preventDefault();
     }
   };
 
   const handleTouchEnd = (e) => {
-    if (!touchStartX) return;
+    if (touchStartX === null) return;
+    if (animationFrameId.current) {
+      cancelAnimationFrame(animationFrameId.current);
+    }
 
     const touchEndX = e.changedTouches[0].clientX;
     const diff = touchStartX - touchEndX;
     const threshold = 80; // Minimum swipe distance
-    const maxDayIndex = workoutData.days.length - 1; // Get actual number of days
+    const maxDayIndex = workoutData.days.length - 1;
 
-    if (diff > threshold) {
-      // Swipe left - next day
-      const nextDay = currentDayIndex < maxDayIndex ? currentDayIndex + 1 : 0;
-      handleDayChange(nextDay);
-    } else if (diff < -threshold) {
-      // Swipe right - previous day
-      const prevDay = currentDayIndex > 0 ? currentDayIndex - 1 : maxDayIndex;
-      handleDayChange(prevDay);
+    if (Math.abs(diff) > threshold) {
+      // Determine new day index
+      let newDayIndex;
+      if (diff > 0) {
+        // Swipe left - next day
+        newDayIndex = currentDayIndex < maxDayIndex ? currentDayIndex + 1 : 0;
+      } else {
+        // Swipe right - previous day
+        newDayIndex = currentDayIndex > 0 ? currentDayIndex - 1 : maxDayIndex;
+      }
+
+      // Set the new day immediately, then clean up drag state
+      setCurrentDayIndex(newDayIndex);
     }
 
-    // Reset touch start value
+    // Always reset drag state
+    setIsDragging(false);
+    setDragOffset(0);
     setTouchStartX(0);
   };
 
   // Exercise modal handlers
-  const openExerciseModal = (exercise) => {
+  const openExerciseModal = useCallback((exercise) => {
     setSelectedExercise({ ...exercise });
     setIsModalOpen(true);
-  };
+  }, []);
 
-  const closeExerciseModal = () => {
+  const closeExerciseModal = useCallback(() => {
     setIsModalOpen(false);
     setSelectedExercise(null);
-  };
+  }, []);
 
-  const updateExerciseSet = (setIndex, field, value) => {
+  const updateExerciseSet = useCallback(
+    (setIndex, field, value) => {
+      if (!selectedExercise) return;
+
+      const updatedSets = [...selectedExercise.sets];
+      updatedSets[setIndex] = {
+        ...updatedSets[setIndex],
+        [field]: value,
+      };
+
+      setSelectedExercise((prev) => ({
+        ...prev,
+        sets: updatedSets,
+      }));
+    },
+    [selectedExercise]
+  );
+
+  const addNewSet = useCallback(() => {
     if (!selectedExercise) return;
 
-    const updatedSets = [...selectedExercise.sets];
-    updatedSets[setIndex] = {
-      ...updatedSets[setIndex],
-      [field]: value,
-    };
+    setSelectedExercise((prev) => ({
+      ...prev,
+      sets: [...prev.sets, { reps: "", weight: "" }],
+    }));
+  }, [selectedExercise]);
 
-    setSelectedExercise({
-      ...selectedExercise,
-      sets: updatedSets,
-    });
-  };
-
-  const addNewSet = () => {
-    if (!selectedExercise) return;
-
-    setSelectedExercise({
-      ...selectedExercise,
-      sets: [...selectedExercise.sets, { reps: "", weight: "" }],
-    });
-  };
-
-  const handleSaveExercise = () => {
+  const handleSaveExercise = useCallback(() => {
     if (!selectedExercise) return;
 
     // Check if at least one set has both reps and weight filled
@@ -170,7 +195,7 @@ const WorkoutsContainer = () => {
     // Update state
     setWorkoutData(updatedWorkoutData);
     closeExerciseModal();
-  };
+  }, [closeExerciseModal, currentDayIndex, selectedExercise, workoutData]);
 
   // Get current day data
   const currentDay = workoutData.days[currentDayIndex];
@@ -185,124 +210,52 @@ const WorkoutsContainer = () => {
   const isFullyCompleted =
     completedExercises === totalExercises && totalExercises > 0;
 
-  // Render the workout card based on day type
-  const renderWorkoutCard = () => {
-    if (!currentDay) return null;
+  // Helper function to get day data by index with wrapping
+  const getDayByIndex = useCallback(
+    (index) => {
+      const totalDays = workoutData.days.length;
+      if (index < 0) {
+        return workoutData.days[totalDays + index];
+      } else if (index >= totalDays) {
+        return workoutData.days[index - totalDays];
+      }
+      return workoutData.days[index];
+    },
+    [workoutData]
+  );
 
-    // Rest day card
-    if (currentDay.isRestDay) {
-      return (
-        <div className="w-full bg-white rounded-xl shadow-sm border-l-4 border-emerald-500 overflow-hidden transition-all duration-300 mb-4">
-          <div className="p-6 text-center">
-            <div className="flex justify-center mb-4">
-              
-            </div>
-            <h2 className="text-2xl font-semibold text-gray-900 mb-2">
-              {currentDay.focus}
-            </h2>
-            <p className="text-sm text-gray-500 mb-4">
-              {currentDay.date} · {currentDay.shortName}
-            </p>
-           
-            <div className="mt-6 flex justify-center space-x-4 text-sm text-gray-500">
-              <span>Stretch</span>
-              <span>Hydrate</span>
-              <span>Rest</span>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // Regular workout day card
+  // Render workout card for a specific day
+  const renderWorkoutCardForDay = (dayData, isActive = true) => {
     return (
-      <div className="w-full bg-white rounded-xl shadow-sm border-l-4 border-gray-900 overflow-hidden transition-all duration-300 mb-4">
-        <div className="p-4 border-b border-gray-100">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">
-                {currentDay.focus}
-              </h2>
-              <p className="text-sm text-gray-500">
-                {currentDay.date} · {currentDay.shortName}
-              </p>
-            </div>
-            <div className="text-sm text-gray-600">
-              {completedExercises}/{totalExercises}
-              {isFullyCompleted && (
-                <span className="inline-flex ml-1 text-emerald-500">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="p-4">
-          <div className="flex flex-col gap-2">
-            {currentDay.exercises &&
-              currentDay.exercises.map((exercise) => (
-                <div
-                  key={exercise.id}
-                  className="p-3 border border-gray-100 rounded-lg flex justify-between items-center cursor-pointer hover:bg-gray-50 transition-all duration-200"
-                  onClick={() => openExerciseModal(exercise)}>
-                  <span className="font-medium text-gray-800">
-                    {exercise.name}
-                  </span>
-                  <div
-                    className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                      exercise.completed
-                        ? "bg-gray-900 text-white"
-                        : "border border-gray-200"
-                    }`}>
-                    {exercise.completed && (
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                      </svg>
-                    )}
-                  </div>
-                </div>
-              ))}
-          </div>
-        </div>
-      </div>
+      <WorkoutCard
+        dayData={dayData}
+        isActive={isActive}
+        openExerciseModal={openExerciseModal}
+      />
     );
   };
 
-  // Exercise modal component
-  const ExerciseModal = () => {
-    if (!isModalOpen || !selectedExercise) return null;
+  const MemoizedExerciseModal = React.memo(function ExerciseModal() {
+    if (!selectedExercise) return null;
 
     // Check if this is a cardio exercise (from Saturday's workout)
     const isCardioExercise = currentDay && currentDay.focus === "Cardio";
 
-    return (
-      <div
-        className="fixed inset-0 bg-black bg-opacity-10  flex items-end justify-center z-50 animate-fadeIn"
-        onClick={closeExerciseModal}>
-        <div
-          className="bg-white w-full max-w-md rounded-t-2xl p-4 animate-slideUp"
-          onClick={(e) => e.stopPropagation()}>
+    const modalContent = (
+      <SlickBottomSheet
+        isOpen={isModalOpen}
+        onCloseStart={() => {
+          closeExerciseModal();
+        }}
+        className="bg-white rounded-t-2xl overflow-hidden shadow-xl"
+        header={
+          <div className="flex justify-center py-2">
+            <div className="w-10 h-1 rounded-full bg-gray-300"></div>
+          </div>
+        }
+        backdropClassName="backdrop-blur-sm bg-black bg-opacity-10"
+        style={{ zIndex: 9999 }}>
+        <div className="p-4">
           <div className="flex justify-between items-center mb-4 border-b border-gray-100 pb-3">
             <h3 className="text-lg font-medium">{selectedExercise.name}</h3>
             <button
@@ -378,9 +331,14 @@ const WorkoutsContainer = () => {
             Save
           </button>
         </div>
-      </div>
+      </SlickBottomSheet>
     );
-  };
+
+    // Use portal to render modal at document body level
+    return typeof document !== "undefined"
+      ? createPortal(modalContent, document.body)
+      : null;
+  });
 
   return (
     <div className="w-full">
@@ -388,21 +346,33 @@ const WorkoutsContainer = () => {
         className="swipe-container relative overflow-hidden"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        // Day Content with Animation
-      >
+        onTouchEnd={handleTouchEnd}>
+        {/* Sliding cards container */}
         <div
-          className="day-content transition-all duration-300 ease-in-out"
+          className={`flex duration-300 ease-out ${
+            isDragging ? "" : "transition-transform"
+          }`}
           style={{
-            transform: `translateX(${translateValue}px)`,
-            opacity: isAnimating ? 0.7 : 1,
+            transform: `translateX(calc(-${
+              currentDayIndex * 33.333
+            }% + ${dragOffset}px))`,
+            width: "300%", // Show 3 cards: previous, current, next
           }}>
-          {renderWorkoutCard()}
+          {/* Render all cards but only one is active */}
+          {workoutData.days.map((day, index) => (
+            <div key={day.id || index} className="w-1/3 flex-shrink-0 px-2">
+              <WorkoutCard
+                dayData={day}
+                isActive={index === currentDayIndex}
+                openExerciseModal={openExerciseModal}
+              />
+            </div>
+          ))}
         </div>
-
-        {/* Exercise Modal */}
-        <ExerciseModal />
       </div>
+
+      {/* Exercise Modal - Now rendered via portal at body level */}
+      <MemoizedExerciseModal />
     </div>
   );
 };
