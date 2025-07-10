@@ -1,21 +1,12 @@
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 
 export const metadata = {
   title: "Workout Tracker",
   description: "Track your workouts efficiently.",
   manifest: "/manifest.json",
-  themeColor: "#000000",
+  themeColor: "#ffffff",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -30,11 +21,13 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html lang="en" >
       <body className="font-sans antialiased">
+        <Header workoutsCompleted={0} />
         <main className="flex justify-center min-h-screen bg-white">
           <div className="w-full max-w-lg">{children}</div>
         </main>
+        <Footer />
       </body>
     </html>
   );

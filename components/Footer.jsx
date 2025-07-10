@@ -9,7 +9,7 @@ const Footer = () => {
   const handleTabClick = (tab) => {
     setActiveTab(tab);
     // Navigation would go here in a full implementation
-    // router.push(`/${tab}`);
+    router.push(`/${tab}`);
   };
 
   return (
