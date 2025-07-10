@@ -11,7 +11,7 @@ const Header = ({ workoutsCompleted }) => {
   }, []);
 
   return (
-    <div className="w-full bg-white transition-all duration-300 p-[1rem] z-10 border-b-[1px] border-[#f3f4f6] mb-2">
+    <div className="w-full sticky top-0 left-0 right-0 bg-white transition-all duration-300 p-[1rem] z-10 border-b-[1px] border-[#f3f4f6] mb-2">
       <div className="flex justify-between items-start">
         <div>
           <h1 className="leading-tight tracking-tight">
