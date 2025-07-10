@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { initialWorkoutData } from "@/const/data";
+import { updateWorkoutDataWithCurrentDates } from "@/lib/utils/date-utils";
 import { Cross, X } from "lucide-react";
 // Sample workout data structure
 
@@ -15,10 +16,29 @@ const WorkoutsContainer = () => {
   const [selectedExercise, setSelectedExercise] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Initialize with the current day of the week
+  // Initialize with the current day of the week and update dates
   useEffect(() => {
-    const today = new Date().getDay();
-    setCurrentDayIndex(today);
+    // Update workout data with current week dates
+    const updatedWorkoutData =
+      updateWorkoutDataWithCurrentDates(initialWorkoutData);
+    setWorkoutData(updatedWorkoutData);
+
+    const today = new Date().getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+    // Map JavaScript day numbers to our array indices
+    // JS: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+    // Our array: 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
+    const dayMapping = {
+      0: 6, // Sunday -> index 6
+      1: 0, // Monday -> index 0
+      2: 1, // Tuesday -> index 1
+      3: 2, // Wednesday -> index 2
+      4: 3, // Thursday -> index 3
+      5: 4, // Friday -> index 4
+      6: 5, // Saturday -> index 5
+    };
+
+    const dayIndex = dayMapping[today];
+    setCurrentDayIndex(dayIndex);
   }, []);
 
   // Day navigation handlers
@@ -67,14 +87,15 @@ const WorkoutsContainer = () => {
     const touchEndX = e.changedTouches[0].clientX;
     const diff = touchStartX - touchEndX;
     const threshold = 80; // Minimum swipe distance
+    const maxDayIndex = workoutData.days.length - 1; // Get actual number of days
 
     if (diff > threshold) {
       // Swipe left - next day
-      const nextDay = currentDayIndex < 6 ? currentDayIndex + 1 : 0;
+      const nextDay = currentDayIndex < maxDayIndex ? currentDayIndex + 1 : 0;
       handleDayChange(nextDay);
     } else if (diff < -threshold) {
       // Swipe right - previous day
-      const prevDay = currentDayIndex > 0 ? currentDayIndex - 1 : 6;
+      const prevDay = currentDayIndex > 0 ? currentDayIndex - 1 : maxDayIndex;
       handleDayChange(prevDay);
     }
 
@@ -155,15 +176,44 @@ const WorkoutsContainer = () => {
   const currentDay = workoutData.days[currentDayIndex];
 
   // Calculate completion progress for current day
-  const completedExercises = currentDay.exercises
-    ? currentDay.exercises.filter((ex) => ex.completed).length
-    : 0;
-  const totalExercises = currentDay.exercises ? currentDay.exercises.length : 0;
+  const completedExercises =
+    currentDay && currentDay.exercises
+      ? currentDay.exercises.filter((ex) => ex.completed).length
+      : 0;
+  const totalExercises =
+    currentDay && currentDay.exercises ? currentDay.exercises.length : 0;
   const isFullyCompleted =
     completedExercises === totalExercises && totalExercises > 0;
 
   // Render the workout card based on day type
   const renderWorkoutCard = () => {
+    if (!currentDay) return null;
+
+    // Rest day card
+    if (currentDay.isRestDay) {
+      return (
+        <div className="w-full bg-white rounded-xl shadow-sm border-l-4 border-emerald-500 overflow-hidden transition-all duration-300 mb-4">
+          <div className="p-6 text-center">
+            <div className="flex justify-center mb-4">
+              
+            </div>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-2">
+              {currentDay.focus}
+            </h2>
+            <p className="text-sm text-gray-500 mb-4">
+              {currentDay.date} · {currentDay.shortName}
+            </p>
+           
+            <div className="mt-6 flex justify-center space-x-4 text-sm text-gray-500">
+              <span>Stretch</span>
+              <span>Hydrate</span>
+              <span>Rest</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     // Regular workout day card
     return (
       <div className="w-full bg-white rounded-xl shadow-sm border-l-4 border-gray-900 overflow-hidden transition-all duration-300 mb-4">
@@ -243,6 +293,9 @@ const WorkoutsContainer = () => {
   const ExerciseModal = () => {
     if (!isModalOpen || !selectedExercise) return null;
 
+    // Check if this is a cardio exercise (from Saturday's workout)
+    const isCardioExercise = currentDay && currentDay.focus === "Cardio";
+
     return (
       <div
         className="fixed inset-0 bg-black bg-opacity-10  flex items-end justify-center z-50 animate-fadeIn"
@@ -261,8 +314,12 @@ const WorkoutsContainer = () => {
 
           <div className="grid grid-cols-12 gap-2 mb-2 text-sm text-gray-500 font-medium">
             <div className="col-span-2">Set</div>
-            <div className="col-span-5">Reps</div>
-            <div className="col-span-5">Weight (kg)</div>
+            <div className="col-span-5">
+              {isCardioExercise ? "Duration" : "Reps"}
+            </div>
+            <div className="col-span-5">
+              {isCardioExercise ? "Intensity" : "Weight (kg)"}
+            </div>
           </div>
 
           {selectedExercise.sets.map((set, index) => (
@@ -274,7 +331,7 @@ const WorkoutsContainer = () => {
                 <input
                   type="text"
                   className="w-full p-2 border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300"
-                  placeholder="0"
+                  placeholder={isCardioExercise ? "30 min" : "0"}
                   value={set.reps}
                   onChange={(e) =>
                     updateExerciseSet(index, "reps", e.target.value)
@@ -285,7 +342,7 @@ const WorkoutsContainer = () => {
                 <input
                   type="text"
                   className="w-full p-2 border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300"
-                  placeholder="0"
+                  placeholder={isCardioExercise ? "Level 5" : "0"}
                   value={set.weight}
                   onChange={(e) =>
                     updateExerciseSet(index, "weight", e.target.value)

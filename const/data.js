@@ -195,16 +195,6 @@ export const initialWorkoutData = {
       focus: "Arms",
       exercises: [
         {
-          id: 401,
-          name: "Close grip bench press",
-          completed: false,
-          sets: [
-            { reps: "", weight: "" },
-            { reps: "", weight: "" },
-            { reps: "", weight: "" },
-          ],
-        },
-        {
           id: 402,
           name: "Tricep push down",
           completed: false,
@@ -214,16 +204,7 @@ export const initialWorkoutData = {
             { reps: "", weight: "" },
           ],
         },
-        {
-          id: 403,
-          name: "Overhead extension",
-          completed: false,
-          sets: [
-            { reps: "", weight: "" },
-            { reps: "", weight: "" },
-            { reps: "", weight: "" },
-          ],
-        },
+
         {
           id: 404,
           name: "Dips",
@@ -234,36 +215,7 @@ export const initialWorkoutData = {
             { reps: "", weight: "" },
           ],
         },
-        {
-          id: 405,
-          name: "Close grip push ups",
-          completed: false,
-          sets: [
-            { reps: "", weight: "" },
-            { reps: "", weight: "" },
-            { reps: "", weight: "" },
-          ],
-        },
-        {
-          id: 406,
-          name: "Incline dumbbell curl",
-          completed: false,
-          sets: [
-            { reps: "", weight: "" },
-            { reps: "", weight: "" },
-            { reps: "", weight: "" },
-          ],
-        },
-        {
-          id: 407,
-          name: "Preacher curl",
-          completed: false,
-          sets: [
-            { reps: "", weight: "" },
-            { reps: "", weight: "" },
-            { reps: "", weight: "" },
-          ],
-        },
+
         {
           id: 408,
           name: "Hammer curl",
@@ -354,6 +306,54 @@ export const initialWorkoutData = {
           ],
         },
       ],
+    },
+    {
+      id: 6,
+      name: "Saturday",
+      shortName: "SAT",
+      date: "March 27",
+      focus: "Cardio",
+      exercises: [
+        {
+          id: 601,
+          name: "Treadmill",
+          completed: false,
+          sets: [{ reps: "30 min", weight: "Level 5" }],
+        },
+        {
+          id: 602,
+          name: "Cycling",
+          completed: false,
+          sets: [{ reps: "20 min", weight: "Level 7" }],
+        },
+        {
+          id: 603,
+          name: "Jump rope",
+          completed: false,
+          sets: [{ reps: "10 min", weight: "High intensity" }],
+        },
+        {
+          id: 604,
+          name: "Burpees",
+          completed: false,
+          sets: [{ reps: "3 sets", weight: "15 reps each" }],
+        },
+        {
+          id: 605,
+          name: "Mountain climbers",
+          completed: false,
+          sets: [{ reps: "3 sets", weight: "30 sec each" }],
+        },
+      ],
+    },
+    {
+      id: 7,
+      name: "Sunday",
+      shortName: "SUN",
+      date: "March 28",
+      focus: "Rest Day",
+      exercises: [],
+      isRestDay: true,
     },
   ],
 };
