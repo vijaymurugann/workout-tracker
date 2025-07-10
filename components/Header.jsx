@@ -26,12 +26,7 @@ const Header = ({ workoutsCompleted }) => {
             Done {workoutsCompleted} workouts
           </p>
         </div>
-        <a
-          className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-50 transition-all duration-200 active:bg-gray-100 active:scale-95"
-          aria-label="Settings"
-          href="/settings" >
-          <Settings color="#9ca3af" />
-        </a>
+       
       </div>
     </div>
   );
