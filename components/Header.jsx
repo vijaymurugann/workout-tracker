@@ -1,13 +1,28 @@
 "use client";
-import { Settings } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { calculateWeekNumber, getOrdinalSuffix } from "@/lib/utils/date-utils";
+import {
+  getStoredWorkoutData,
+  getCompletedWorkoutsCount,
+  subscribeWorkoutDataChange,
+} from "@/lib/workout-storage";
 
-const Header = ({ workoutsCompleted }) => {
+const Header = ({ workoutsCompleted: initialWorkoutsCompleted = 0 }) => {
   const [weekNumber, setWeekNumber] = useState(0);
+  const [completedCount, setCompletedCount] = useState(initialWorkoutsCompleted);
 
   useEffect(() => {
     setWeekNumber(calculateWeekNumber());
+
+    const updateCount = () => {
+      const data = getStoredWorkoutData();
+      const count = getCompletedWorkoutsCount(data);
+      setCompletedCount(count);
+    };
+
+    updateCount();
+    const unsubscribe = subscribeWorkoutDataChange(updateCount);
+    return () => unsubscribe();
   }, []);
 
   return (
@@ -23,10 +38,9 @@ const Header = ({ workoutsCompleted }) => {
             </span>
           </h1>
           <p className="text-md font-medium text-[#10b981] mt-1">
-            Done {workoutsCompleted} workouts
+            Done {completedCount} workouts
           </p>
         </div>
-       
       </div>
     </div>
   );

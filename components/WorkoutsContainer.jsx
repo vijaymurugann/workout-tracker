@@ -1,38 +1,56 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { createPortal } from "react-dom";
-import { initialWorkoutData } from "@/const/data";
-import { updateWorkoutDataWithCurrentDates } from "@/lib/utils/date-utils";
-import { X } from "lucide-react";
-import { SlickBottomSheet } from "slick-bottom-sheet";
+import { initialWorkoutData, splitPresets } from "@/const/data";
+import {
+  getStoredWorkoutData,
+  saveStoredWorkoutData,
+  subscribeWorkoutDataChange,
+  getActiveSplitId,
+  setActiveSplit,
+  toggleExerciseCompletion,
+  addCustomExercise,
+  deleteExercise,
+  resetCurrentWeek,
+} from "@/lib/workout-storage";
+import {
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
+  Layers,
+  Sparkles,
+  Calendar,
+  CheckCircle2,
+  Moon,
+} from "lucide-react";
 import WorkoutCard from "./WorkoutCard";
-
-// Sample workout data structure
+import ExerciseModal from "./ExerciseModal";
+import SplitSelectorModal from "./SplitSelectorModal";
 
 const WorkoutsContainer = () => {
   // State variables
   const [workoutData, setWorkoutData] = useState(initialWorkoutData);
   const [currentDayIndex, setCurrentDayIndex] = useState(0);
-  const [touchStartX, setTouchStartX] = useState(0);
-  const [isAnimating, setIsAnimating] = useState(false);
+  const [todayIndex, setTodayIndex] = useState(0);
   const [selectedExercise, setSelectedExercise] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isExerciseModalOpen, setIsExerciseModalOpen] = useState(false);
+  const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
+  const [activeSplitId, setActiveSplitId] = useState("modern-hypertrophy");
+
+  // Touch and drag states
+  const [touchStartX, setTouchStartX] = useState(null);
+  const [touchStartY, setTouchStartY] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   const animationFrameId = useRef(null);
 
-  // Initialize with the current day of the week and update dates
+  // Initialize with the current day of the week and stored data
   useEffect(() => {
-    // Update workout data with current week dates
-    const updatedWorkoutData =
-      updateWorkoutDataWithCurrentDates(initialWorkoutData);
-    setWorkoutData(updatedWorkoutData);
+    const loadedData = getStoredWorkoutData();
+    setWorkoutData(loadedData);
+    setActiveSplitId(getActiveSplitId());
 
     const today = new Date().getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
-    // Map JavaScript day numbers to our array indices
-    // JS: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
-    // Our array: 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
     const dayMapping = {
       0: 6, // Sunday -> index 6
       1: 0, // Monday -> index 0
@@ -43,27 +61,59 @@ const WorkoutsContainer = () => {
       6: 5, // Saturday -> index 5
     };
 
-    const dayIndex = dayMapping[today];
-    setCurrentDayIndex(dayIndex);
+    const targetDayIndex = dayMapping[today] ?? 0;
+    setTodayIndex(targetDayIndex);
+    setCurrentDayIndex(targetDayIndex);
+
+    const unsubscribe = subscribeWorkoutDataChange(() => {
+      setWorkoutData(getStoredWorkoutData());
+      setActiveSplitId(getActiveSplitId());
+    });
+
+    return () => unsubscribe();
   }, []);
+
+  // Keyboard navigation (ArrowLeft, ArrowRight)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (isExerciseModalOpen || isSplitModalOpen) return;
+      if (e.key === "ArrowLeft") {
+        goToPreviousDay();
+      } else if (e.key === "ArrowRight") {
+        goToNextDay();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [currentDayIndex, workoutData, isExerciseModalOpen, isSplitModalOpen]);
 
   // Day navigation handlers
   const handleDayChange = (dayIndex) => {
-    if (isAnimating || isDragging) return;
-
-    setIsAnimating(true);
-
-    // Immediately set the new day index
-    setCurrentDayIndex(dayIndex);
-
-    setTimeout(() => {
-      setIsAnimating(false);
-    }, 300);
+    if (!workoutData?.days) return;
+    const bounded = Math.max(0, Math.min(dayIndex, workoutData.days.length - 1));
+    setCurrentDayIndex(bounded);
+    setDragOffset(0);
   };
 
-  // Touch event handlers for swipe gestures
+  const goToPreviousDay = () => {
+    if (!workoutData?.days) return;
+    const newIndex =
+      currentDayIndex > 0 ? currentDayIndex - 1 : workoutData.days.length - 1;
+    handleDayChange(newIndex);
+  };
+
+  const goToNextDay = () => {
+    if (!workoutData?.days) return;
+    const newIndex =
+      currentDayIndex < workoutData.days.length - 1 ? currentDayIndex + 1 : 0;
+    handleDayChange(newIndex);
+  };
+
+  // Touch event handlers for mobile gestures
   const handleTouchStart = (e) => {
     setTouchStartX(e.touches[0].clientX);
+    setTouchStartY(e.touches[0].clientY);
     setIsDragging(false);
     setDragOffset(0);
     if (animationFrameId.current) {
@@ -72,24 +122,26 @@ const WorkoutsContainer = () => {
   };
 
   const handleTouchMove = (e) => {
-    if (touchStartX === null) return;
+    if (touchStartX === null || touchStartY === null) return;
 
-    const touchCurrentX = e.touches[0].clientX;
-    const diff = touchStartX - touchCurrentX;
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const diffX = touchStartX - currentX;
+    const diffY = touchStartY - currentY;
 
-    if (Math.abs(diff) > 10 && !isDragging) {
-      setIsDragging(true);
-    }
+    // Only engage horizontal drag if horizontal motion exceeds vertical
+    if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 10) {
+      if (!isDragging) setIsDragging(true);
 
-    if (isDragging) {
       if (animationFrameId.current) {
         cancelAnimationFrame(animationFrameId.current);
       }
 
       animationFrameId.current = requestAnimationFrame(() => {
-        setDragOffset(-diff);
+        setDragOffset(-diffX);
       });
-      e.preventDefault();
+
+      if (e.cancelable) e.preventDefault();
     }
   };
 
@@ -100,279 +152,319 @@ const WorkoutsContainer = () => {
     }
 
     const touchEndX = e.changedTouches[0].clientX;
-    const diff = touchStartX - touchEndX;
-    const threshold = 80; // Minimum swipe distance
-    const maxDayIndex = workoutData.days.length - 1;
+    const diffX = touchStartX - touchEndX;
+    const threshold = 60; // Minimum swipe distance in px
+    const maxDayIndex = (workoutData?.days?.length || 7) - 1;
 
-    if (Math.abs(diff) > threshold) {
-      // Determine new day index
-      let newDayIndex;
-      if (diff > 0) {
-        // Swipe left - next day
-        newDayIndex = currentDayIndex < maxDayIndex ? currentDayIndex + 1 : 0;
+    if (Math.abs(diffX) > threshold) {
+      if (diffX > 0) {
+        // Swiped left -> Next day
+        setCurrentDayIndex((prev) => (prev < maxDayIndex ? prev + 1 : 0));
       } else {
-        // Swipe right - previous day
-        newDayIndex = currentDayIndex > 0 ? currentDayIndex - 1 : maxDayIndex;
+        // Swiped right -> Previous day
+        setCurrentDayIndex((prev) => (prev > 0 ? prev - 1 : maxDayIndex));
       }
-
-      // Set the new day immediately, then clean up drag state
-      setCurrentDayIndex(newDayIndex);
     }
 
-    // Always reset drag state
     setIsDragging(false);
     setDragOffset(0);
-    setTouchStartX(0);
+    setTouchStartX(null);
+    setTouchStartY(null);
   };
 
   // Exercise modal handlers
   const openExerciseModal = useCallback((exercise) => {
-    setSelectedExercise({ ...exercise });
-    setIsModalOpen(true);
+    setSelectedExercise(exercise);
+    setIsExerciseModalOpen(true);
   }, []);
 
   const closeExerciseModal = useCallback(() => {
-    setIsModalOpen(false);
+    setIsExerciseModalOpen(false);
     setSelectedExercise(null);
   }, []);
 
-  const updateExerciseSet = useCallback(
-    (setIndex, field, value) => {
-      if (!selectedExercise) return;
+  const handleSaveExercise = useCallback(
+    (updatedExercise) => {
+      if (!updatedExercise || !workoutData?.days) return;
 
-      const updatedSets = [...selectedExercise.sets];
-      updatedSets[setIndex] = {
-        ...updatedSets[setIndex],
-        [field]: value,
-      };
+      const updated = JSON.parse(JSON.stringify(workoutData));
+      const currentDay = updated.days[currentDayIndex];
 
-      setSelectedExercise((prev) => ({
-        ...prev,
-        sets: updatedSets,
-      }));
+      if (currentDay?.exercises) {
+        const exIdx = currentDay.exercises.findIndex(
+          (ex) => ex.id === updatedExercise.id
+        );
+        if (exIdx !== -1) {
+          currentDay.exercises[exIdx] = updatedExercise;
+        }
+      }
+
+      setWorkoutData(updated);
+      saveStoredWorkoutData(updated);
+      closeExerciseModal();
     },
-    [selectedExercise]
+    [closeExerciseModal, currentDayIndex, workoutData]
   );
 
-  const addNewSet = useCallback(() => {
-    if (!selectedExercise) return;
+  // Fast direct actions
+  const handleToggleExercise = useCallback(
+    (dayIdx, exerciseId) => {
+      toggleExerciseCompletion(dayIdx, exerciseId);
+    },
+    []
+  );
 
-    setSelectedExercise((prev) => ({
-      ...prev,
-      sets: [...prev.sets, { reps: "", weight: "" }],
-    }));
-  }, [selectedExercise]);
+  const handleAddExercise = useCallback(
+    (dayIdx, exercise) => {
+      addCustomExercise(dayIdx, exercise);
+    },
+    []
+  );
 
-  const handleSaveExercise = useCallback(() => {
-    if (!selectedExercise) return;
+  const handleDeleteExercise = useCallback(
+    (dayIdx, exerciseId) => {
+      deleteExercise(dayIdx, exerciseId);
+    },
+    []
+  );
 
-    // Check if at least one set has both reps and weight filled
-    const isCompleted = selectedExercise.sets.some(
-      (set) => set.reps.trim() !== "" && set.weight.trim() !== ""
-    );
+  const handleMarkAllComplete = useCallback(
+    (dayIdx, status) => {
+      if (!workoutData?.days?.[dayIdx]) return;
+      const updated = JSON.parse(JSON.stringify(workoutData));
+      const day = updated.days[dayIdx];
 
-    const updatedExercise = {
-      ...selectedExercise,
-      completed: isCompleted,
-    };
+      day.exercises = (day.exercises || []).map((ex) => {
+        let sets = ex.sets || [];
+        if (status && (!sets.length || !sets.some((s) => s.reps && s.weight))) {
+          sets = [
+            { reps: "10", weight: "60" },
+            { reps: "10", weight: "60" },
+            { reps: "8", weight: "65" },
+          ];
+        }
+        return {
+          ...ex,
+          completed: status,
+          sets,
+        };
+      });
 
-    // Update the workout data
-    const updatedWorkoutData = JSON.parse(JSON.stringify(workoutData));
-    const currentDay = updatedWorkoutData.days[currentDayIndex];
-
-    if (currentDay.exercises) {
-      const exerciseIndex = currentDay.exercises.findIndex(
-        (ex) => ex.id === selectedExercise.id
-      );
-      if (exerciseIndex !== -1) {
-        currentDay.exercises[exerciseIndex] = updatedExercise;
-      }
-    }
-
-    // Log the update (instead of saving to DB)
-    console.log("Exercise updated:", updatedExercise);
-
-    // Update state
-    setWorkoutData(updatedWorkoutData);
-    closeExerciseModal();
-  }, [closeExerciseModal, currentDayIndex, selectedExercise, workoutData]);
-
-  // Get current day data
-  const currentDay = workoutData.days[currentDayIndex];
-
-  // Calculate completion progress for current day
-  const completedExercises =
-    currentDay && currentDay.exercises
-      ? currentDay.exercises.filter((ex) => ex.completed).length
-      : 0;
-  const totalExercises =
-    currentDay && currentDay.exercises ? currentDay.exercises.length : 0;
-  const isFullyCompleted =
-    completedExercises === totalExercises && totalExercises > 0;
-
-  // Helper function to get day data by index with wrapping
-  const getDayByIndex = useCallback(
-    (index) => {
-      const totalDays = workoutData.days.length;
-      if (index < 0) {
-        return workoutData.days[totalDays + index];
-      } else if (index >= totalDays) {
-        return workoutData.days[index - totalDays];
-      }
-      return workoutData.days[index];
+      setWorkoutData(updated);
+      saveStoredWorkoutData(updated);
     },
     [workoutData]
   );
 
-  // Render workout card for a specific day
-  const renderWorkoutCardForDay = (dayData, isActive = true) => {
-    return (
-      <WorkoutCard
-        dayData={dayData}
-        isActive={isActive}
-        openExerciseModal={openExerciseModal}
-      />
-    );
-  };
+  const handleSelectSplit = useCallback((presetId) => {
+    setActiveSplit(presetId);
+  }, []);
 
-  const MemoizedExerciseModal = React.memo(function ExerciseModal() {
-    if (!selectedExercise) return null;
+  const handleResetCurrentWeek = useCallback(() => {
+    if (
+      window.confirm(
+        "Reset all completed workouts for this week? Your exercise list will be preserved."
+      )
+    ) {
+      resetCurrentWeek();
+    }
+  }, []);
 
-    // Check if this is a cardio exercise (from Saturday's workout)
-    const isCardioExercise = currentDay && currentDay.focus === "Cardio";
-
-    const modalContent = (
-      <SlickBottomSheet
-        isOpen={isModalOpen}
-        onCloseStart={() => {
-          closeExerciseModal();
-        }}
-        className="bg-white rounded-t-2xl overflow-hidden shadow-xl"
-        header={
-          <div className="flex justify-center py-2">
-            <div className="w-10 h-1 rounded-full bg-gray-300"></div>
-          </div>
-        }
-        backdropClassName="backdrop-blur-sm bg-black bg-opacity-10"
-        style={{ zIndex: 9999 }}>
-        <div className="p-4">
-          <div className="flex justify-between items-center mb-4 border-b border-gray-100 pb-3">
-            <h3 className="text-lg font-medium">{selectedExercise.name}</h3>
-            <button
-              className="p-1 text-gray-400 hover:text-gray-600"
-              onClick={closeExerciseModal}>
-              <X />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-12 gap-2 mb-2 text-sm text-gray-500 font-medium">
-            <div className="col-span-2">Set</div>
-            <div className="col-span-5">
-              {isCardioExercise ? "Duration" : "Reps"}
-            </div>
-            <div className="col-span-5">
-              {isCardioExercise ? "Intensity" : "Weight (kg)"}
-            </div>
-          </div>
-
-          {selectedExercise.sets.map((set, index) => (
-            <div key={index} className="grid grid-cols-12 gap-2 mb-3">
-              <div className="col-span-2 flex items-center justify-center bg-gray-50 rounded-md py-2 text-gray-600 font-medium">
-                {index + 1}
-              </div>
-              <div className="col-span-5">
-                <input
-                  type="text"
-                  className="w-full p-2 border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300"
-                  placeholder={isCardioExercise ? "30 min" : "0"}
-                  value={set.reps}
-                  onChange={(e) =>
-                    updateExerciseSet(index, "reps", e.target.value)
-                  }
-                />
-              </div>
-              <div className="col-span-5">
-                <input
-                  type="text"
-                  className="w-full p-2 border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300"
-                  placeholder={isCardioExercise ? "Level 5" : "0"}
-                  value={set.weight}
-                  onChange={(e) =>
-                    updateExerciseSet(index, "weight", e.target.value)
-                  }
-                />
-              </div>
-            </div>
-          ))}
-
-          <button
-            className="w-full py-2 px-3 mb-4 border border-gray-200 rounded-lg flex items-center justify-center hover:bg-gray-50 transition-colors duration-200"
-            onClick={addNewSet}>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="mr-1">
-              <path d="M5 12h14"></path>
-              <path d="M12 5v14"></path>
-            </svg>
-            <span className="text-gray-600">Add Set</span>
-          </button>
-
-          <button
-            className="w-full py-3 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 active:scale-[0.98] transition-all duration-200"
-            onClick={handleSaveExercise}>
-            Save
-          </button>
-        </div>
-      </SlickBottomSheet>
-    );
-
-    // Use portal to render modal at document body level
-    return typeof document !== "undefined"
-      ? createPortal(modalContent, document.body)
-      : null;
-  });
+  const days = workoutData?.days || [];
+  const currentDay = days[currentDayIndex];
+  const activeSplit =
+    splitPresets.find((p) => p.id === activeSplitId) || splitPresets[0];
 
   return (
-    <div className="w-full">
+    <div className="w-full pb-20">
+      {/* Top Split & Action Bar */}
+      <div className="flex items-center justify-between gap-2 mb-3 px-1">
+        <button
+          type="button"
+          onClick={() => setIsSplitModalOpen(true)}
+          className="inline-flex items-center gap-1.5 py-1.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold transition active:scale-95">
+          <Layers size={14} className="text-gray-600" />
+          <span className="truncate max-w-[170px]">{activeSplit.name}</span>
+          <span className="text-gray-400 text-[10px]">▼</span>
+        </button>
+
+        <div className="flex items-center gap-1">
+          {currentDayIndex !== todayIndex && (
+            <button
+              type="button"
+              onClick={() => handleDayChange(todayIndex)}
+              className="py-1 px-2.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition active:scale-95">
+              Today
+            </button>
+          )}
+
+          <button
+            type="button"
+            title="Reset week progress"
+            onClick={handleResetCurrentWeek}
+            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition active:scale-95">
+            <RotateCcw size={15} />
+          </button>
+        </div>
+      </div>
+
+      {/* Interactive Sticky Weekday Selector */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-2 shadow-xs mb-4">
+        <div className="grid grid-cols-7 gap-1">
+          {days.map((day, idx) => {
+            const isSelected = idx === currentDayIndex;
+            const isToday = idx === todayIndex;
+            const completedCount =
+              day.exercises?.filter((e) => e.completed).length || 0;
+            const totalCount = day.exercises?.length || 0;
+            const isCompleted =
+              completedCount === totalCount && totalCount > 0;
+            const isPartial = completedCount > 0 && !isCompleted;
+
+            // Extract day number from "October 28"
+            const dateParts = day.date?.split(" ") || [];
+            const dayNum = dateParts[1] || "";
+
+            return (
+              <button
+                key={day.id || idx}
+                type="button"
+                onClick={() => handleDayChange(idx)}
+                className={`relative flex flex-col items-center py-2 px-1 rounded-xl transition-all cursor-pointer select-none active:scale-95 ${
+                  isSelected
+                    ? "bg-gray-900 text-white shadow-sm"
+                    : "hover:bg-gray-50 text-gray-700"
+                }`}>
+                {/* Weekday abbreviation */}
+                <span
+                  className={`text-[10px] uppercase font-bold tracking-wider ${
+                    isSelected ? "text-gray-300" : "text-gray-400"
+                  }`}>
+                  {day.shortName}
+                </span>
+
+                {/* Day number */}
+                <span className="text-sm font-black my-0.5">
+                  {dayNum || idx + 1}
+                </span>
+
+                {/* Status Dot / Icon */}
+                <div className="h-2 flex items-center justify-center mt-0.5">
+                  {day.isRestDay ? (
+                    <Moon
+                      size={8}
+                      className={isSelected ? "text-emerald-400" : "text-emerald-600"}
+                    />
+                  ) : isCompleted ? (
+                    <div
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        isSelected ? "bg-emerald-400" : "bg-emerald-500"
+                      }`}
+                    />
+                  ) : isPartial ? (
+                    <div
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        isSelected ? "bg-amber-300" : "bg-amber-400"
+                      }`}
+                    />
+                  ) : (
+                    <div
+                      className={`w-1 h-1 rounded-full ${
+                        isSelected ? "bg-gray-600" : "bg-gray-200"
+                      }`}
+                    />
+                  )}
+                </div>
+
+                {/* Today Indicator Pill */}
+                {isToday && (
+                  <span
+                    className={`absolute -bottom-1 w-1.5 h-1.5 rounded-full ${
+                      isSelected ? "bg-emerald-400" : "bg-emerald-500 ring-2 ring-white"
+                    }`}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Day Carousel Controls Header */}
+      <div className="flex items-center justify-between mb-2 px-2 text-xs text-gray-500">
+        <button
+          type="button"
+          onClick={goToPreviousDay}
+          className="inline-flex items-center gap-1 font-semibold text-gray-600 hover:text-black py-1 px-2 rounded-lg hover:bg-gray-100 transition active:scale-95">
+          <ChevronLeft size={16} />
+          <span>Previous</span>
+        </button>
+
+        <span className="font-bold text-gray-800">
+          Day {currentDayIndex + 1} of 7
+        </span>
+
+        <button
+          type="button"
+          onClick={goToNextDay}
+          className="inline-flex items-center gap-1 font-semibold text-gray-600 hover:text-black py-1 px-2 rounded-lg hover:bg-gray-100 transition active:scale-95">
+          <span>Next</span>
+          <ChevronRight size={16} />
+        </button>
+      </div>
+
+      {/* Sliding Cards Container */}
       <div
-        className="swipe-container relative overflow-hidden"
+        className="swipe-container relative overflow-hidden touch-pan-y"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}>
-        {/* Sliding cards container */}
         <div
-          className={`flex duration-300 ease-out ${
-            isDragging ? "" : "transition-transform"
+          className={`flex ${
+            isDragging ? "" : "transition-transform duration-300 ease-out"
           }`}
           style={{
             transform: `translateX(calc(-${
-              currentDayIndex * 33.333
+              (currentDayIndex * 100) / (days.length || 7)
             }% + ${dragOffset}px))`,
-            width: "300%", // Show 3 cards: previous, current, next
+            width: `${(days.length || 7) * 100}%`,
           }}>
-          {/* Render all cards but only one is active */}
-          {workoutData.days.map((day, index) => (
-            <div key={day.id || index} className="w-1/3 flex-shrink-0 px-2">
+          {days.map((day, index) => (
+            <div
+              key={day.id || index}
+              style={{ width: `${100 / days.length}%` }}
+              className="flex-shrink-0 px-1">
               <WorkoutCard
                 dayData={day}
+                dayIndex={index}
                 isActive={index === currentDayIndex}
                 openExerciseModal={openExerciseModal}
+                onToggleExercise={handleToggleExercise}
+                onAddExercise={handleAddExercise}
+                onDeleteExercise={handleDeleteExercise}
+                onMarkAllComplete={handleMarkAllComplete}
               />
             </div>
           ))}
         </div>
       </div>
 
-      {/* Exercise Modal - Now rendered via portal at body level */}
-      <MemoizedExerciseModal />
+      {/* Standalone Exercise Modal (Never remounts during typing) */}
+      <ExerciseModal
+        isOpen={isExerciseModalOpen}
+        onClose={closeExerciseModal}
+        exercise={selectedExercise}
+        onSave={handleSaveExercise}
+        isCardio={currentDay && currentDay.focus === "Cardio"}
+      />
+
+      {/* Split Selector Modal */}
+      <SplitSelectorModal
+        isOpen={isSplitModalOpen}
+        onClose={() => setIsSplitModalOpen(false)}
+        currentSplitId={activeSplitId}
+        onSelectSplit={handleSelectSplit}
+      />
     </div>
   );
 };
